@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sinar Sakti POS</title>
+
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#2563eb">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,500,0,0" rel="stylesheet" />
+
+    <style>
+        ::-webkit-scrollbar { width: 4px; background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        body { -webkit-tap-highlight-color: transparent; user-select: none; }
+        input, select { user-select: auto; font-size: 16px !important; }
+        
+        .material-symbols-rounded { vertical-align: middle; }
+
+        @page {
+        /* 14cm lebar, 21.5cm panjang */
+        size: 140mm 215mm; 
+        margin: 5mm;
+        }
+
+        @media print {
+        body * { visibility: hidden; }
+        #print-area, #print-area * { visibility: visible; }
+        #print-area { 
+            position: absolute; 
+            left: 0; 
+            top: 0; 
+            width: 140mm; /* Sesuai lebar kertas */
+            background: white; 
+        }
+}
+    </style>
+</head>
+<body class="bg-slate-50 font-sans text-slate-800 min-h-screen">
+
+    <div id="login-page" class="fixed inset-0 bg-slate-100 flex items-center justify-center z-[9999]">
+        <div class="bg-white p-8 rounded-3xl shadow-2xl w-80 max-w-[90%] border border-gray-100">
+            <div class="text-center mb-8">
+                <div class="inline-flex items-center justify-center bg-blue-600 text-white w-16 h-16 rounded-2xl mb-4 shadow-lg border-4 border-blue-100">
+                    <span class="material-symbols-rounded text-4xl">storefront</span>
+                </div>
+                <h1 class="text-3xl font-black text-blue-600 tracking-tight leading-none">SINAR SAKTI</h1>
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2">Grosir Pakaian Dalam</p>
+            </div>
+            
+            <div class="relative mb-3">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                    <span class="material-symbols-rounded text-xl">person</span>
+                </div>
+                <input type="text" id="login-username" placeholder="Username" class="w-full bg-slate-50 border border-slate-200 focus:border-blue-500 outline-none p-3 pl-10 rounded-xl">
+            </div>
+            
+            <div class="relative mb-6">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                    <span class="material-symbols-rounded text-xl">lock</span>
+                </div>
+                <input type="password" id="login-password" placeholder="Password" class="w-full bg-slate-50 border border-slate-200 focus:border-blue-500 outline-none p-3 pl-10 rounded-xl">
+            </div>
+            
+            <button onclick="loginUser()" id="btn-login" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3.5 rounded-xl font-bold shadow-md transition-all flex justify-center items-center gap-2 text-lg">
+                Masuk Sistem <span class="material-symbols-rounded text-xl">login</span>
+            </button>
+            <p id="login-error" class="text-rose-500 text-center text-sm font-bold mt-4"></p>
+        </div>
+    </div>
+
+    <nav class="bg-white px-4 py-3 shadow-sm border-b border-gray-100 shrink-0 z-20 sticky top-0">
+        <div class="container mx-auto flex justify-between items-center max-w-6xl">
+            
+            <div class="flex items-center gap-3">
+                <div class="bg-blue-600 text-white flex items-center justify-center w-10 h-10 rounded-lg shadow-md">
+                    <span class="material-symbols-rounded text-2xl">store</span>
+                </div>
+                <div class="flex flex-col">
+                    <h1 class="font-black text-xl md:text-2xl text-blue-600 tracking-tight leading-none">SINAR SAKTI</h1>
+                    <span class="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase tracking-wider">Cloud POS System</span>
+                </div>
+            </div>
+            
+            <div class="hidden md:flex space-x-2 font-semibold">
+                <button onclick="nav('dashboard')" class="nav-btn text-slate-500 hover:text-blue-600 px-4 py-2 rounded-xl transition flex items-center gap-1.5" data-target="dashboard">
+                    <span class="material-symbols-rounded text-lg">space_dashboard</span> Dashboard
+                </button>
+                <button onclick="nav('kasir')" class="nav-btn text-blue-600 bg-blue-50 px-4 py-2 rounded-xl transition flex items-center gap-1.5" data-target="kasir">
+                    <span class="material-symbols-rounded text-lg">shopping_cart_checkout</span> Kasir
+                </button>
+                <button onclick="nav('barang')" class="nav-btn text-slate-500 hover:text-blue-600 px-4 py-2 rounded-xl transition flex items-center gap-1.5" data-target="barang">
+                    <span class="material-symbols-rounded text-lg">inventory_2</span> Data Barang
+                </button>
+                <button onclick="logoutUser()" class="bg-rose-50 hover:bg-rose-100 text-rose-600 px-4 py-2 rounded-xl transition font-bold flex items-center gap-1.5">
+                    <span class="material-symbols-rounded text-lg">logout</span> Logout
+                </button>
+            </div>
+            
+            <div class="flex items-center gap-2">
+                <div id="status-db" class="text-xs font-bold text-amber-600 bg-amber-100 px-3 py-1.5 rounded-lg flex items-center gap-1 shadow-sm">
+                    <span class="material-symbols-rounded text-sm animate-spin">sync</span> Menghubungkan
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="flex-1 overflow-y-auto p-4 pb-24 md:p-6 md:pb-6 relative" id="main-content" style="display:none;">
+        <div class="container mx-auto h-full max-w-6xl">
+
+            <div id="page-dashboard" class="page-section hidden animate-fade-in">
+                <div class="mb-6">
+                    <h2 class="text-2xl md:text-3xl font-black text-slate-800 flex items-center gap-2">
+                        <span class="material-symbols-rounded text-blue-600 text-3xl md:text-4xl">storefront</span> 
+                        Toko Sinar Sakti
+                    </h2>
+                    <p class="text-slate-500 font-medium mt-1 ml-10">Ringkasan performa dan data toko hari ini</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center gap-4 border-l-4 border-l-blue-500">
+                        <div class="bg-blue-50 text-blue-600 p-4 rounded-2xl"><span class="material-symbols-rounded text-3xl">category</span></div>
+                        <div>
+                            <p class="text-slate-500 font-semibold text-sm">Total Jenis Barang</p>
+                            <p class="text-3xl font-black text-slate-800 mt-1" id="dash-items">0</p>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center gap-4 border-l-4 border-l-emerald-500">
+                        <div class="bg-emerald-50 text-emerald-600 p-4 rounded-2xl"><span class="material-symbols-rounded text-3xl">payments</span></div>
+                        <div>
+                            <p class="text-slate-500 font-semibold text-sm">Total Omzet (Rp)</p>
+                            <p class="text-3xl font-black text-emerald-600 mt-1" id="dash-omzet">0</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="page-barang" class="page-section hidden animate-fade-in">
+                <h2 class="text-2xl font-bold mb-4 text-slate-800 flex items-center gap-2">
+                    <span class="material-symbols-rounded text-blue-600 text-3xl">inventory</span> Manajemen Barang
+                </h2>
+                
+                <div class="bg-white p-5 rounded-3xl shadow-sm mb-6 border border-gray-100">
+                    <form id="item-form" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <input type="hidden" id="item-id">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 mb-1">Nama Barang</label>
+                            <input type="text" id="item-name" required class="w-full bg-slate-50 border border-slate-200 focus:border-blue-500 outline-none p-3 rounded-xl">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 mb-1">Harga per Lusin</label>
+                            <input type="number" id="item-price" required class="w-full bg-slate-50 border border-slate-200 focus:border-blue-500 outline-none p-3 rounded-xl">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 mb-1">Min. Pembelian</label>
+                            <select id="item-min" class="w-full bg-slate-50 border border-slate-200 focus:border-blue-500 outline-none p-3 rounded-xl cursor-pointer">
+                                <option value="3">1/4 Lusin (3 Pcs)</option>
+                                <option value="6">1/2 Lusin (6 Pcs)</option>
+                                <option value="12">1 Lusin (12 Pcs)</option>
+                            </select>
+                        </div>
+                        <div class="flex items-end">
+                            <button type="submit" id="btn-submit-barang" class="bg-blue-600 hover:bg-blue-700 text-white w-full p-3 font-bold rounded-xl shadow-md transition flex items-center justify-center gap-2">
+                                <span class="material-symbols-rounded text-lg">cloud_upload</span> Simpan Data
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="relative mb-4">
+                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
+                        <span class="material-symbols-rounded text-xl">search</span>
+                    </div>
+                    <input type="text" id="search-barang-admin" placeholder="Cari barang untuk edit atau hapus..." class="w-full bg-white border border-slate-200 focus:border-blue-500 outline-none py-3.5 pl-11 pr-4 rounded-2xl shadow-sm font-medium" onkeyup="filterBarangAdmin()">
+                </div>
+
+                <div class="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-x-auto w-full">
+                    <table class="w-full text-left text-xs md:text-sm">
+                        <thead class="bg-slate-50 border-b border-slate-100">
+                            <tr>
+                                <th class="p-4 font-bold text-slate-600">Nama Barang</th>
+                                <th class="p-4 font-bold text-slate-600">Harga/Lusin</th>
+                                <th class="p-4 font-bold text-slate-600">Min Order</th>
+                                <th class="p-4 font-bold text-slate-600 text-center">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-items" class="divide-y divide-gray-50"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="page-kasir" class="page-section hidden h-full animate-fade-in">
+                <div class="flex flex-col lg:flex-row gap-4 h-full">
+                    
+                    <div class="w-full lg:w-3/5 bg-white rounded-3xl shadow-sm flex flex-col border border-gray-100 overflow-hidden min-h-[40vh] lg:h-full">
+                        <div class="p-4 border-b border-gray-100 bg-white relative">
+                            <div class="absolute inset-y-0 left-4 pl-3 flex items-center pointer-events-none text-slate-400">
+                                <span class="material-symbols-rounded text-xl">search</span>
+                            </div>
+                            <input type="text" id="search-item" placeholder="Ketik nama barang..." class="w-full py-3 pl-11 pr-4 bg-slate-50 border border-slate-200 focus:border-blue-500 outline-none rounded-xl font-medium">
+                        </div>
+                        <div id="kasir-item-list" class="overflow-y-auto p-4 flex-1 grid grid-cols-2 md:grid-cols-3 gap-3 bg-slate-50/50 content-start"></div>
+                    </div>
+                    
+                    <div class="w-full lg:w-2/5 bg-white rounded-3xl shadow-sm flex flex-col border border-gray-100 h-[75vh] lg:h-full">
+                        <div class="p-4 border-b border-gray-100 flex justify-between items-center bg-white rounded-t-3xl">
+                            <h2 class="font-bold text-slate-800 flex items-center gap-2">
+                                <span class="material-symbols-rounded text-blue-600">shopping_bag</span> Keranjang
+                            </h2>
+                            <span id="cart-badge" class="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-1 rounded-full">0 Item</span>
+                        </div>
+                        <div id="cart-list" class="overflow-y-auto flex-1 p-3 space-y-3 bg-slate-50/50"></div>
+                        <div class="p-5 border-t border-gray-100 bg-white rounded-b-3xl shadow-[0_-10px_15px_-3px_rgba(0,0,0,0.05)] z-10">
+                            <div class="flex justify-between items-end mb-4">
+                                <span class="font-bold text-slate-500">Total Pembayaran</span>
+                                <span class="text-3xl font-black text-blue-600 leading-none" id="cart-total">Rp 0</span>
+                            </div>
+                            <button onclick="prosesPembayaran()" id="btn-bayar" class="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-4 rounded-xl shadow-md transition-all text-lg flex justify-center items-center gap-2">
+                                <span class="material-symbols-rounded">receipt_long</span> Bayar & Cetak Nota
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="md:hidden fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 flex justify-around items-end pb-safe pt-2 shadow-[0_-5px_15px_-3px_rgba(0,0,0,0.05)] z-50">
+        <button onclick="nav('dashboard')" class="mobile-nav-btn flex flex-col items-center p-2 text-slate-400 w-1/4" data-target="dashboard">
+            <span class="material-symbols-rounded mb-1 text-[26px]">space_dashboard</span>
+            <span class="text-[10px] font-bold">Beranda</span>
+        </button>
+        <button onclick="nav('kasir')" class="mobile-nav-btn flex flex-col items-center p-2 text-blue-600 w-1/4 relative" data-target="kasir">
+            <div class="absolute -top-6 bg-blue-600 text-white w-14 h-14 flex items-center justify-center rounded-full border-4 border-slate-50 shadow-lg">
+                <span class="material-symbols-rounded text-[26px]">shopping_cart_checkout</span>
+            </div>
+            <span class="text-[10px] font-bold mt-6">Kasir</span>
+        </button>
+        <button onclick="nav('barang')" class="mobile-nav-btn flex flex-col items-center p-2 text-slate-400 w-1/4" data-target="barang">
+            <span class="material-symbols-rounded mb-1 text-[26px]">inventory_2</span>
+            <span class="text-[10px] font-bold">Barang</span>
+        </button>
+        <button onclick="logoutUser()" class="mobile-nav-btn flex flex-col items-center p-2 text-rose-400 w-1/4">
+            <span class="material-symbols-rounded mb-1 text-[26px]">logout</span>
+            <span class="text-[10px] font-bold">Logout</span>
+        </button>
+    </div>
+
+    <div id="modal-struk" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm hidden flex justify-center items-center z-[100] p-4 overflow-y-auto">
+        <div class="bg-white rounded-3xl shadow-2xl w-[95vw] max-w-md overflow-hidden border border-gray-200 flex flex-col max-h-[90vh]">
+            <div id="print-area" class="p-6 overflow-y-auto bg-white text-slate-800 flex-1">
+                <div class="text-center mb-4 border-b-2 border-dashed border-gray-300 pb-4">
+                    <h2 class="font-black text-2xl text-slate-800 tracking-tight">SINAR SAKTI</h2>
+                    <p class="text-[11px] text-gray-500 mt-1 font-medium uppercase tracking-wider">Grosir Pakaian Dalam & Apparel</p>
+                </div>
+                <div class="flex justify-between text-[11px] text-gray-600 mb-3 font-medium">
+                    <div><p>Trx: <span id="struk-no" class="font-bold text-gray-800"></span></p></div>
+                    <div class="text-right"><p id="struk-date"></p></div>
+                </div>
+                <div class="flex text-[10px] font-bold border border-gray-400 py-2 mb-2 bg-gray-50">
+                    <div class="w-1/12 text-center">NO</div>
+                    <div class="w-5/12 pl-1">BARANG</div>
+                    <div class="w-2/12 text-center">QTY</div>
+                    <div class="w-2/12 text-right pr-1">HARGA</div>
+                    <div class="w-2/12 text-right pr-1">TOTAL</div>
+                </div>
+                <div class="mb-3 flex flex-col gap-1.5 text-[11px]" id="struk-items"></div>
+                <div class="border-t-2 border-dashed border-gray-300 pt-2 mb-2">
+                    <div class="flex justify-between font-black text-sm text-slate-900">
+                        <span>TOTAL BAYAR</span><span id="struk-total">Rp 0</span>
+                    </div>
+                </div>
+                <div class="flex justify-between mt-8 mb-6 text-center text-sm">
+                    <div>Kasir<br><br><br>____________</div>
+                    <div>Penerima<br><br><br>____________</div>
+                </div>
+                <div class="text-center text-[10px] text-gray-500"><p class="font-bold">*** TERIMA KASIH ***</p></div>
+            </div>
+            
+            <div class="p-4 border-t border-gray-100 bg-slate-50 flex flex-col gap-2 no-print shrink-0">
+                <div class="flex gap-2">
+                    <button onclick="window.print()" class="flex-1 bg-slate-800 hover:bg-slate-900 text-white py-3 rounded-xl text-sm font-bold transition flex justify-center items-center gap-1.5">
+                        <span class="material-symbols-rounded text-lg">print</span> Cetak
+                    </button>
+                    <button onclick="unduhPDF()" class="flex-1 bg-rose-500 hover:bg-rose-600 text-white py-3 rounded-xl text-sm font-bold transition flex justify-center items-center gap-1.5">
+                        <span class="material-symbols-rounded text-lg">picture_as_pdf</span> PDF
+                    </button>
+                </div>
+                <button onclick="kirimWA()" class="w-full bg-[#25D366] hover:bg-[#20b958] text-white py-3 rounded-xl text-sm font-bold transition flex justify-center items-center gap-1.5">
+                    <span class="material-symbols-rounded text-lg">send</span> Kirim WhatsApp
+                </button>
+                <button onclick="simpanTransaksi()" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl text-sm font-bold mt-1 transition flex justify-center items-center gap-1.5">
+                    <span class="material-symbols-rounded text-lg">cloud_done</span> Simpan & Selesai
+                </button>
+                <button onclick="batalTransaksi()" class="w-full bg-slate-300 hover:bg-slate-400 text-slate-800 py-3 rounded-xl text-sm font-bold transition flex justify-center items-center gap-1.5">
+                    <span class="material-symbols-rounded text-lg">close</span> Tutup / Batal
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const SUPABASE_URL = 'https://cuzxaypnoshxqnwnlmpa.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_ga_-0Mtptqulk3eVBGxKuQ_3GbNaqhS';
+        const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        let items = [];
+        let cart = [];
+        let lastTrxData = {}; 
+
+        const formatRp = (angka) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(angka);
+        const formatQty = (pcs) => {
+            const lsn = Math.floor(pcs / 12), sisa = pcs % 12;
+            let res = [];
+            if(lsn > 0) res.push(`${lsn} Lsn`);
+            if(sisa > 0) res.push(`${sisa} Pcs`);
+            return res.join(' ');
+        };
+
+        window.addEventListener('beforeunload', () => {
+            const user = JSON.parse(localStorage.getItem('user_login'));
+            if(user) db.from('Users_Sinar_Sakti').update({ is_online: false }).eq('id', user.id).then();
+        });
+
+        window.addEventListener('load', () => {
+            const user = localStorage.getItem('user_login');
+            if (user) {
+                document.getElementById('login-page').style.display = 'none';
+                document.getElementById('main-content').style.display = 'block';
+                const data = JSON.parse(user);
+                
+                if (data.role !== 'boss' && data.role !== 'assistant') {
+                    document.querySelectorAll('[data-target="barang"]').forEach(el => el.remove());
+                }
+                
+                nav('kasir');
+                if (typeof db !== 'undefined') {
+                    fetchCloudData();
+                } else {
+                    document.getElementById('status-db').innerHTML = '<span class="material-symbols-rounded text-sm">wifi_off</span> Offline Mode';
+                }
+            }
+        });
+
+                async function loginUser() {
+            const username = document.getElementById('login-username').value.trim();
+            const password = document.getElementById('login-password').value.trim();
+            const btn = document.getElementById('btn-login');
+            const err = document.getElementById('login-error');
+            
+            btn.innerHTML = `<span class="material-symbols-rounded animate-spin">sync</span> Memproses...`; 
+            btn.disabled = true; 
+            err.innerText = "";
+
+            // 1. Ambil data user dari database
+            const { data, error } = await db.from('Users_Sinar_Sakti')
+                .select('*')
+                .eq('username', username)
+                .eq('password', password)
+                .maybeSingle();
+
+            if (error || !data) {
+                err.innerText = error ? error.message : 'Username atau Password salah';
+                btn.innerHTML = `Masuk Sistem <span class="material-symbols-rounded">login</span>`; 
+                btn.disabled = false;
+                return;
+            }
+
+            // 2. CEK STATUS: Jika sedang online, BLOKIR!
+            if (data.is_online === true) {
+                err.innerText = 'Akun sedang aktif di perangkat lain. Logout dulu!';
+                btn.innerHTML = `Masuk Sistem <span class="material-symbols-rounded">login</span>`; 
+                btn.disabled = false;
+                return;
+            }
+
+            // 3. ATOMIC UPDATE: Tandai sebagai online
+            // Kita lakukan update terlebih dahulu sebelum mengizinkan user masuk
+            const { error: updateError } = await db.from('Users_Sinar_Sakti')
+                .update({ is_online: true })
+                .eq('id', data.id);
+
+            if (updateError) {
+                err.innerText = 'Gagal sinkronisasi status login. Coba lagi.';
+                btn.disabled = false;
+                return;
+            }
+
+            // 4. Jika berhasil, simpan session
+            localStorage.setItem('user_login', JSON.stringify({ ...data, is_online: true }));
+            location.reload(); 
+        }
+
+        async function logoutUser(){
+            const user = JSON.parse(localStorage.getItem('user_login'));
+            if(user){
+                await db.from('Users_Sinar_Sakti').update({ is_online: false }).eq('id', user.id);
+            }
+            localStorage.removeItem('user_login');
+            location.reload();
+        }
+
+        window.nav = function(page) {
+            document.querySelectorAll('.page-section').forEach(el => el.classList.add('hidden'));
+            document.getElementById(`page-${page}`).classList.remove('hidden');
+            
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.className = btn.dataset.target === page ? "nav-btn text-blue-600 bg-blue-50 px-4 py-2 rounded-xl transition flex items-center gap-1.5" : "nav-btn text-slate-500 hover:text-blue-600 px-4 py-2 rounded-xl transition flex items-center gap-1.5";
+            });
+            document.querySelectorAll('.mobile-nav-btn').forEach(btn => {
+                if(btn.dataset.target === page && page !== 'kasir') { btn.classList.replace('text-slate-400', 'text-blue-600'); } 
+                else if(page !== 'kasir') { btn.classList.replace('text-blue-600', 'text-slate-400'); }
+            });
+
+            if(page === 'kasir') { renderKasir(); renderCart(); setTimeout(() => document.getElementById('search-item').focus(), 100); }
+            if(page === 'dashboard') loadDashboard();
+        }
+
+        async function fetchCloudData() {
+            try {
+                if(SUPABASE_URL.includes('contoh-url')) throw new Error("Key Belum Diganti");
+                const { data, error } = await db.from('products').select('*').order('name');
+                if(error) throw error;
+                
+                items = data;
+                renderBarang(); renderKasir(); loadDashboard();
+                
+                const status = document.getElementById('status-db');
+                status.innerHTML = '<span class="material-symbols-rounded text-sm">cloud_done</span> Terhubung';
+                status.className = "text-xs font-bold text-emerald-600 bg-emerald-100 px-3 py-1.5 rounded-lg flex items-center gap-1 shadow-sm";
+            } catch (err) {
+                console.error("Gagal Konek:", err.message);
+                const status = document.getElementById('status-db');
+                status.innerHTML = '<span class="material-symbols-rounded text-sm">cloud_off</span> Gagal Koneksi';
+                status.className = "text-xs font-bold text-rose-600 bg-rose-100 px-3 py-1.5 rounded-lg flex items-center gap-1 shadow-sm";
+            }
+        }
+
+        async function loadDashboard() {
+            document.getElementById('dash-items').innerText = items.length;
+            if(!SUPABASE_URL.includes('contoh-url')) {
+                const { data } = await db.from('sales').select('total');
+                if(data) document.getElementById('dash-omzet').innerText = formatRp(data.reduce((a, b) => a + b.total, 0));
+            }
+        }
+
+        document.getElementById('item-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const payload = {
+                name: document.getElementById('item-name').value,
+                price: parseInt(document.getElementById('item-price').value),
+                min_order: parseInt(document.getElementById('item-min').value)
+            };
+            
+            if (window.editId) {
+                await db.from('products').update(payload).eq('id', window.editId);
+                window.editId = null;
+                document.getElementById('btn-submit-barang').innerHTML = '<span class="material-symbols-rounded text-lg">cloud_upload</span> Simpan Data';
+            } else {
+                await db.from('products').insert([payload]);
+            }
+            
+            document.getElementById('item-form').reset();
+            fetchCloudData();
+        });
+
+        async function hapusBarang(id) {
+            if(confirm("Hapus barang dari Cloud?")) {
+                await db.from('products').delete().eq('id', id);
+                fetchCloudData();
+            }
+        }
+
+        function editBarang(id) {
+            const item = items.find(x => x.id === id);
+            document.getElementById('item-name').value = item.name;
+            document.getElementById('item-price').value = item.price;
+            document.getElementById('item-min').value = item.min_order;
+            window.editId = id;
+            document.getElementById('btn-submit-barang').innerHTML = '<span class="material-symbols-rounded text-lg">edit</span> Update Data';
+            document.getElementById('item-name').focus();
+        }
+
+        function filterBarangAdmin() {
+            const keyword = document.getElementById('search-barang-admin').value.toLowerCase();
+            const rows = document.querySelectorAll('#table-items tr');
+            rows.forEach(row => {
+                row.style.display = row.innerText.toLowerCase().includes(keyword) ? '' : 'none';
+            });
+        }
+
+        function renderBarang() {
+            const tbody = document.getElementById('table-items');
+            if(items.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-400 text-sm font-medium"><span class="material-symbols-rounded text-3xl mb-2 block">folder_off</span>Belum ada barang di database</td></tr>`;
+                return;
+            }
+            tbody.innerHTML = items.map(item => `
+                <tr class="hover:bg-slate-50 border-b border-slate-50 transition">
+                    <td class="p-3 md:p-4 font-medium min-w-[120px] whitespace-normal">${item.name}</td>
+                    <td class="p-3 md:p-4 whitespace-nowrap">${formatRp(item.price)}</td>
+                    <td class="p-3 md:p-4 text-xs whitespace-nowrap">${formatQty(item.min_order)}</td>
+                    <td class="p-3 md:p-4">
+                        <div class="flex justify-center gap-1.5">
+                            <button onclick="editBarang(${item.id})" class="text-amber-600 font-bold text-xs bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-100 hover:bg-amber-100 flex items-center gap-1"><span class="material-symbols-rounded text-[14px]">edit</span>Edit</button>
+                            <button onclick="hapusBarang(${item.id})" class="text-rose-600 font-bold text-xs bg-rose-50 px-3 py-1.5 rounded-lg border border-rose-100 hover:bg-rose-100 flex items-center gap-1"><span class="material-symbols-rounded text-[14px]">delete</span>Hapus</button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        document.getElementById('search-item').addEventListener('input', renderKasir);
+        
+        function renderKasir() {
+            const query = document.getElementById('search-item').value.toLowerCase();
+            const filtered = items.filter(i => i.name.toLowerCase().includes(query));
+            const list = document.getElementById('kasir-item-list');
+            
+            if(filtered.length === 0) {
+                list.innerHTML = `<div class="col-span-full flex flex-col items-center justify-center text-slate-400 mt-10 text-sm font-medium"><span class="material-symbols-rounded text-4xl mb-2">search_off</span>Barang tidak ditemukan</div>`;
+                return;
+            }
+
+            list.innerHTML = filtered.map(item => `
+                <div class="bg-white p-3 md:p-4 rounded-2xl border border-slate-200 shadow-sm cursor-pointer hover:border-blue-500 hover:shadow-md transition flex flex-col justify-between" onclick="addCart(${item.id})">
+                    <h4 class="font-bold text-sm leading-tight text-slate-800">${item.name}</h4>
+                    <div class="mt-3">
+                        <p class="text-[10px] font-bold text-slate-400 bg-slate-100 w-fit px-2 py-0.5 rounded-md mb-1 flex items-center gap-1"><span class="material-symbols-rounded text-[12px]">info</span> Min: ${formatQty(item.min_order)}</p>
+                        <p class="text-sm md:text-base font-black text-blue-600">${formatRp(item.price)}</p>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function addCart(id) {
+            const item = items.find(i => i.id == id);
+            const exist = cart.find(c => c.id == id);
+            if(exist) exist.qty += item.min_order; else cart.push({ ...item, qty: item.min_order });
+            if (navigator.vibrate) navigator.vibrate(50);
+            renderCart();
+        }
+
+        function modQty(id, amt) {
+            const idx = cart.findIndex(c => c.id == id);
+            if(idx > -1) { cart[idx].qty += amt; if(cart[idx].qty <= 0) cart.splice(idx, 1); renderCart(); }
+        }
+
+        function renderCart() {
+            let total = 0;
+            const list = document.getElementById('cart-list');
+            document.getElementById('cart-badge').innerText = `${cart.length} Item`;
+
+            if(cart.length === 0) {
+                list.innerHTML = `<div class="h-full flex flex-col items-center justify-center text-slate-400 text-sm font-medium"><span class="material-symbols-rounded text-4xl mb-2">remove_shopping_cart</span>Keranjang masih kosong</div>`;
+                document.getElementById('cart-total').innerText = "Rp 0";
+                document.getElementById('btn-bayar').disabled = true;
+                return;
+            }
+            document.getElementById('btn-bayar').disabled = false;
+
+            list.innerHTML = cart.map(item => {
+                const sub = Math.ceil(((item.qty / 12) * item.price) / 1000) * 1000;
+                total += sub;
+                const step = item.min_order;
+                return `
+                <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm relative">
+                    <div class="pr-8"><h4 class="font-bold text-sm text-slate-800">${item.name}</h4></div>
+                    <div class="text-xs font-bold text-slate-500 mt-1 mb-3">Subtotal: <span class="text-blue-600">${formatRp(sub)}</span></div>
+                    
+                    <div class="flex items-center justify-between bg-slate-50 p-2 rounded-xl">
+                        <div class="flex gap-1">
+                            ${step <= 12 ? `<button onclick="modQty(${item.id}, -12)" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-600 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 shadow-sm">-1L</button>` : ''}
+                            ${step <= 6 ? `<button onclick="modQty(${item.id}, -6)" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-600 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 shadow-sm">-½</button>` : ''}
+                            ${step <= 3 ? `<button onclick="modQty(${item.id}, -3)" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-600 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 shadow-sm">-¼</button>` : ''}
+                        </div>
+                        <div class="text-center font-black text-sm text-slate-800 px-2">${formatQty(item.qty)}</div>
+                        <div class="flex gap-1">
+                            ${step <= 3 ? `<button onclick="modQty(${item.id}, 3)" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-600 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 shadow-sm">+¼</button>` : ''}
+                            ${step <= 6 ? `<button onclick="modQty(${item.id}, 6)" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-600 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 shadow-sm">+½</button>` : ''}
+                            ${step <= 12 ? `<button onclick="modQty(${item.id}, 12)" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-600 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 shadow-sm">+1L</button>` : ''}
+                        </div>
+                    </div>
+                    <button onclick="modQty(${item.id}, -${item.qty})" class="absolute top-3 right-3 text-slate-300 hover:text-rose-500 bg-slate-50 hover:bg-rose-50 w-6 h-6 rounded-full flex items-center justify-center transition">
+                        <span class="material-symbols-rounded text-sm">close</span>
+                    </button>
+                </div>`;
+            }).join('');
+            document.getElementById('cart-total').innerText = formatRp(total);
+            document.getElementById('cart-total').dataset.val = total;
+        }
+
+        function prosesPembayaran() {
+            if(cart.length === 0) return;
+            const btn = document.getElementById('btn-bayar');
+            btn.innerHTML = `<span class="material-symbols-rounded animate-spin">sync</span> Memproses...`; btn.disabled = true;
+
+            const totalBayar = document.getElementById('cart-total').dataset.val;
+            const noTrx = 'TRX' + Date.now().toString().slice(-6);
+
+            lastTrxData = { no: noTrx, date: new Date().toLocaleString('id-ID'), items: [...cart], total: totalBayar };
+            
+            document.getElementById('struk-no').innerText = lastTrxData.no;
+            document.getElementById('struk-date').innerText = lastTrxData.date;
+            document.getElementById('struk-items').innerHTML = lastTrxData.items.map((item, index) => `
+                <div class="flex text-[10px] border-b border-gray-200 py-1.5 items-center">
+                    <div class="w-1/12 text-center">${index + 1}</div>
+                    <div class="w-5/12 pl-1 break-words leading-tight">${item.name}</div>
+                    <div class="w-2/12 text-center font-bold">${formatQty(item.qty)}</div>
+                    <div class="w-2/12 text-right pr-1">${formatRp(item.price)}</div>
+                    <div class="w-2/12 text-right font-black pr-1">${formatRp(Math.ceil((item.qty / 12) * item.price / 1000) * 1000)}</div>
+                </div>
+            `).join('');
+            document.getElementById('struk-total').innerText = formatRp(lastTrxData.total);
+            
+            document.getElementById('modal-struk').classList.remove('hidden');
+            btn.innerHTML = `<span class="material-symbols-rounded">receipt_long</span> Bayar & Cetak Nota`; btn.disabled = false;
+        }
+
+        function unduhPDF() {
+            html2pdf().set({ margin: 0.2, filename: `Nota_${lastTrxData.no}.pdf`, html2canvas: { scale: 2 } }).from(document.getElementById('print-area')).save();
+        }
+
+        function kirimWA() {
+            let text = `*NOTA SINAR SAKTI*\nNo. Trx: ${lastTrxData.no}\nTanggal: ${lastTrxData.date}\n----------------------\n`;
+            lastTrxData.items.forEach(i => { text += `*${i.name}*\n${formatQty(i.qty)} x Rp${i.price.toLocaleString('id-ID')}/lsn = Rp${(Math.ceil(((i.qty/12)*i.price) / 1000) * 1000).toLocaleString('id-ID')}\n\n`; });
+            text += `----------------------\n*TOTAL BAYAR: ${formatRp(lastTrxData.total)}*\nTerima kasih telah berbelanja!`;
+            window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+        }
+
+        function batalTransaksi() {
+            document.getElementById('modal-struk').classList.add('hidden');
+        }
+
+        async function simpanTransaksi() {
+            try {
+                const { data: saleData } = await db.from('sales').insert([{ trx_number: lastTrxData.no, total: lastTrxData.total }]).select();
+                if(saleData) {
+                    const saleId = saleData[0].id;
+                    const itemsToInsert = lastTrxData.items.map(c => ({
+                        sale_id: saleId, product_id: c.id, qty: c.qty, subtotal: Math.ceil((((c.qty / 12) * c.price) / 1000)) * 1000
+                    }));
+                    await db.from('sale_items').insert(itemsToInsert);
+                }
+            } catch(e) { console.log("Gagal simpan cloud", e); }
+
+            cart = [];
+            document.getElementById('search-item').value = "";
+            renderKasir();
+            renderCart();
+            document.getElementById('modal-struk').classList.add('hidden');
+            loadDashboard();
+        }
+
+    </script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js').catch(err => console.log('SW Error:', err));
+        }
+    </script>
+</body>
+</html>
